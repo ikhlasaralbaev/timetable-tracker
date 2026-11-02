@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Entry, FetchInfo, Teacher, Timetable } from "@/lib/edupage";
+import { BotSettings, TeacherBot, type AdminState } from "@/components/AdminPanels";
 
 const DAY_NAMES = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"];
 const PAGE_SIZE = 300;
@@ -40,6 +41,12 @@ export default function TimetableApp() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "day", dir: 1 });
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const [admin, setAdmin] = useState<AdminState | null>(null);
+
+  const loadAdmin = useCallback(async () => {
+    const res = await fetch("/api/admin/state", { cache: "no-store" });
+    if (res.ok) setAdmin(await res.json());
+  }, []);
 
   const load = useCallback(async (refresh = false) => {
     setRefreshing(true);
@@ -62,8 +69,11 @@ export default function TimetableApp() {
     syncHash();
     window.addEventListener("hashchange", syncHash);
     load();
+    loadAdmin();
     return () => window.removeEventListener("hashchange", syncHash);
-  }, [load]);
+  }, [load, loadAdmin]);
+
+  const linked = useMemo(() => new Set((admin?.subscribers || []).map((s) => s.teacher_id)), [admin]);
 
   const teacherById = useMemo(() => new Map((data?.teachers || []).map((t) => [t.id, t])), [data]);
   const teacher = teacherId ? teacherById.get(teacherId) ?? null : null;
@@ -121,7 +131,7 @@ export default function TimetableApp() {
 
   return (
     <div className="app">
-      <Sidebar data={data} teacherId={teacher?.id ?? null} query={teacherQuery} onQuery={setTeacherQuery} onSelect={selectTeacher} />
+      <Sidebar data={data} teacherId={teacher?.id ?? null} query={teacherQuery} onQuery={setTeacherQuery} onSelect={selectTeacher} linked={linked} />
 
       <main>
         <section>
@@ -139,6 +149,10 @@ export default function TimetableApp() {
               <button className="btn" disabled={refreshing} onClick={() => load(true)}>Yangilash</button>
             </div>
           </div>
+
+          {teacher
+            ? <TeacherBot teacherId={teacher.id} state={admin} onChange={loadAdmin} />
+            : <BotSettings state={admin} onChange={loadAdmin} />}
 
           <ul className="stats">
             {([
@@ -191,8 +205,9 @@ export default function TimetableApp() {
   );
 }
 
-function Sidebar({ data, teacherId, query, onQuery, onSelect }: {
+function Sidebar({ data, teacherId, query, onQuery, onSelect, linked }: {
   data: Data | null;
+  linked?: Set<string>;
   teacherId: string | null;
   query: string;
   onQuery: (q: string) => void;
@@ -232,7 +247,10 @@ function Sidebar({ data, teacherId, query, onQuery, onSelect }: {
           <li key={t.id}>
             <button aria-current={t.id === teacherId} className={t.count ? "" : "empty-teacher"} onClick={() => onSelect(t.id)}>
               <span className="name"><span className="tdot" style={{ ["--c" as string]: t.color }} />{t.name}</span>
-              <span className="count">{t.count}</span>
+              <span className="count">
+                {linked?.has(t.id) && <span className="tg" title="Telegram'ga ulangan">TG</span>}
+                {t.count}
+              </span>
             </button>
           </li>
         ))}

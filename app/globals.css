@@ -225,3 +225,70 @@ td a:hover { text-decoration: underline; }
   .toolbar input { max-width: none; min-width: 0; }
   .toolbar .result-count { margin-left: 0; width: 100%; }
 }
+
+/* ---------- Admin: Telegram va bot sozlamalari ---------- */
+.panel {
+  margin: 0 0 22px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.panel h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.panel .actions { margin-top: 12px; }
+.badge {
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 500;
+  background: var(--paper); color: var(--muted);
+  text-decoration: none;
+}
+.badge.on { background: var(--accent-soft); color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.primary:hover { border-color: var(--accent); filter: brightness(1.08); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.chat-list { list-style: none; margin: 0 0 4px; padding: 0; }
+.chat-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.chat-list li:last-child { border-bottom: 0; }
+.chat-list small, .facts small { color: var(--muted); }
+.linkbox { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
+.linkbox input {
+  flex: 1; min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+.linkbox p { width: 100%; margin: 0; color: var(--muted); font-size: 13px; }
+.settings-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+.settings-row label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.settings-row label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); padding-bottom: 8px; }
+.settings-row input[type="time"], .settings-row select {
+  padding: 7px 10px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink);
+}
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 20px; margin: 16px 0 0; }
+.facts dt { font-size: 12.5px; color: var(--muted); }
+.facts dd { margin: 2px 0 0; }
+.notice { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 9%, transparent); color: var(--ink); font-size: 14px; }
+.form-note { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+.form-error { margin: 0; color: var(--danger); font-size: 14px; }
+.teacher-list .tg {
+  margin-right: 6px; padding: 1px 5px; border-radius: 4px;
+  font-size: 10.5px; font-weight: 600;
+  background: var(--accent-soft); color: var(--accent);
+}
+
+/* ---------- Login ---------- */
+.login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.login form {
+  width: 100%; max-width: 360px;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 28px;
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.login h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+.login p { margin: 0; color: var(--muted); }
+.login input { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); }
