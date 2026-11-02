@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Avatar, DAY_NAMES, DAY_SHORT, fmt, teacherSlug, useData } from "@/components/data";
-import { IconChevron, IconSearch } from "@/components/icons";
+import { api, Avatar, DAY_NAMES, DAY_SHORT, fmt, teacherSlug, useData } from "@/components/data";
+import { IconCheck, IconChevron, IconLink, IconSearch } from "@/components/icons";
 
 type Filter = "all" | "linked" | "unlinked" | "idle";
 type Sort = "name" | "load";
@@ -16,7 +16,8 @@ const FILTERS: [Filter, string][] = [
 ];
 
 export default function TeacherDirectory() {
-  const { data, linked } = useData();
+  const { data, linked, admin } = useData();
+  const botReady = !!admin?.status.db && !!admin?.status.bot;
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("name");
@@ -105,7 +106,7 @@ export default function TeacherDirectory() {
             const days = perDay.get(t.id) || Array(data!.dayCount).fill(0);
             const workDays = days.filter(Boolean).length;
             return (
-              <li key={t.id}>
+              <li key={t.id} className="person-item">
                 <Link href={`/teachers/${teacherSlug(t.id)}`} className={"person-row" + (t.count ? "" : " is-idle")}>
                   <span className="person-main">
                     <Avatar name={t.name} color={t.color} />
@@ -124,11 +125,69 @@ export default function TeacherDirectory() {
                     <IconChevron className="row-chevron" />
                   </span>
                 </Link>
+                <div className="person-action">
+                  {botReady && t.count > 0 && <CopyInvite teacherId={t.id} name={t.name} />}
+                </div>
               </li>
             );
           })}
         </ul>
       )}
     </div>
+  );
+}
+
+// Ro'yxatdan chiqmasdan taklif havolasini yaratib, nusxalash
+function CopyInvite({ teacherId, name }: { teacherId: string; name: string }) {
+  const { notify } = useData();
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+
+  async function copy() {
+    setState("busy");
+    const request = api<{ link: string }>("/api/admin/invite", "POST", { teacherId });
+    try {
+      // Safari nusxalashni faqat bosish paytida ruxsat beradi: ClipboardItem'ga promise beramiz
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        const blob = request.then((r) => new Blob([r.link], { type: "text/plain" }));
+        blob.catch(() => {}); // xato pastda alohida ko'rsatiladi
+        await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+      } else {
+        await navigator.clipboard.writeText((await request).link);
+      }
+      setState("done");
+      notify(`${name} uchun havola nusxalandi`);
+      setTimeout(() => setState("idle"), 2200);
+    } catch {
+      // Avval havola umuman yaratildimi — server xatosi muhimroq
+      const result = await request.then((r) => r.link, (err: Error) => err);
+      if (result instanceof Error) {
+        setState("idle");
+        notify(result.message, "error");
+        return;
+      }
+      // Havola bor, faqat clipboard rad etdi: oddiy usul bilan yana urinamiz, bo'lmasa havolani ko'rsatamiz
+      try {
+        await navigator.clipboard.writeText(result);
+        setState("done");
+        notify(`${name} uchun havola nusxalandi`);
+        setTimeout(() => setState("idle"), 2200);
+      } catch {
+        setState("idle");
+        notify(`Nusxalab bo'lmadi, havolani qo'lda oling: ${result}`, "error");
+      }
+    }
+  }
+
+  return (
+    <button
+      className={"copy-invite" + (state === "done" ? " is-done" : "")}
+      onClick={copy}
+      disabled={state === "busy"}
+      title="Bir martalik Telegram havolasini nusxalash"
+      aria-label={`${name} uchun Telegram havolasini nusxalash`}
+    >
+      {state === "done" ? <IconCheck /> : <IconLink />}
+      <span>{state === "busy" ? "Yaratilmoqda…" : state === "done" ? "Nusxalandi" : "Havola"}</span>
+    </button>
   );
 }

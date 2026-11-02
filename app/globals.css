@@ -969,3 +969,39 @@ input[type="time"].field { width: auto; min-width: 140px; font-variant-numeric: 
   .dir-tools .field-icon { min-width: 0; }
   .dir-tools .segmented button { padding: 0 12px; }
 }
+
+/* Katalog qatoridagi "Havola" tugmasi: o'qituvchi sahifasiga kirmasdan nusxalash */
+.person-item { display: grid; grid-template-columns: minmax(0, 1fr) 132px; align-items: center; }
+.people li + li .person-row { border-top: 0; }
+.people li.person-item + li.person-item { border-top: 1px solid var(--line-2); }
+.person-item:hover { background: var(--surface-2); }
+.person-item .person-row:hover { background: none; }
+.people-head { padding-right: 152px; }
+.person-action { display: flex; justify-content: flex-end; padding-right: 18px; }
+.copy-invite {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 36px; padding: 0 13px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: var(--surface); color: var(--ink);
+  font-size: 13.5px; font-weight: 600; white-space: nowrap;
+  transition: border-color .18s, background-color .18s, color .18s, transform .15s var(--spring);
+}
+.copy-invite .icon { width: 16px; height: 16px; }
+.copy-invite:hover:not(:disabled) { border-color: var(--ink); }
+.copy-invite:active:not(:disabled) { transform: scale(0.95); }
+.copy-invite:disabled { opacity: .6; }
+.copy-invite.is-done { border-color: var(--ok); color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, var(--surface)); }
+
+@media (max-width: 860px) {
+  .person-item { grid-template-columns: minmax(0, 1fr) auto; }
+  .person-action { padding-right: 12px; }
+  .copy-invite { width: 42px; height: 42px; padding: 0; justify-content: center; border-radius: 13px; }
+  .copy-invite span { display: none; }
+  .copy-invite .icon { width: 18px; height: 18px; }
+  .person-row { padding-right: 8px; }
+}
+.segmented button { white-space: nowrap; }
+@media (max-width: 860px) {
+  .topbar { background: var(--bg); }
+  .toolbar-sticky { background: var(--bg); box-shadow: 0 8px 12px -12px rgb(15 23 38 / 0.25); }
+}
