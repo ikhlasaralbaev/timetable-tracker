@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { api, DAY_NAMES, fmt, groupsOf, tashkent, teacherIdFromSlug, toMinutes, useData } from "@/components/data";
+import { api, Avatar, DAY_NAMES, DAY_SHORT, fmt, groupsOf, tashkent, teacherIdFromSlug, toMinutes, useData } from "@/components/data";
+import { IconBack, IconCheck, IconCopy, IconDoor, IconGroup, IconLink, IconSend } from "@/components/icons";
 import type { Entry, Teacher } from "@/lib/edupage";
 
 export default function TeacherPage({ slug }: { slug: string }) {
   const { data, teacherById } = useData();
-  const [view, setView] = useState<"week" | "list">("week");
+  const [view, setView] = useState<"week" | "days">("week");
   const id = teacherIdFromSlug(slug, teacherById);
   const teacher = teacherById.get(id);
 
@@ -26,39 +27,55 @@ export default function TeacherPage({ slug }: { slug: string }) {
     );
   }
 
-  const paras = lessons.reduce((s, e) => s + e.duration, 0);
-  const days = new Set(lessons.map((e) => e.day)).size;
-  const groups = new Set(lessons.flatMap((e) => e.classes)).size;
+  const now = tashkent();
+  const today = lessons.filter((e) => e.day === now.weekday);
+  const stats: [number, string][] = [
+    [lessons.length, "dars"],
+    [lessons.reduce((s, e) => s + e.duration, 0), "para"],
+    [new Set(lessons.map((e) => e.day)).size, "kun"],
+    [new Set(lessons.flatMap((e) => e.classes)).size, "guruh"],
+  ];
 
   return (
-    <div className="teacher">
-      <Link href="/teachers" className="back-link">← O&apos;qituvchilar</Link>
+    <div className="teacher stagger">
+      <Link href="/teachers" className="back-link"><IconBack />O&apos;qituvchilar</Link>
 
-      <header className="teacher-head">
-        <h1 className="display teacher-name">
-          <span className="swatch swatch-lg" style={{ ["--c" as string]: teacher.color }} />
-          {teacher.name}
-        </h1>
-        <p className="lede">
-          Haftasiga {fmt(lessons.length)} dars, {fmt(paras)} para. {days} kun ishlaydi, {groups} ta guruhga dars beradi.
-        </p>
+      <header className="teacher-hero" style={{ ["--c" as string]: teacher.color }}>
+        <Avatar name={teacher.name} color={teacher.color} size="xl" />
+        <div className="teacher-hero-text">
+          <h1 className="display teacher-name">{teacher.name}</h1>
+          <p className="teacher-today">
+            {now.weekday > 5 ? "Bugun yakshanba."
+              : today.length ? <>Bugun <b>{today.length} ta dars</b>: {today.map((e) => `${e.period}-para`).join(", ")}.</>
+              : "Bugun darsi yo'q."}
+          </p>
+        </div>
+        <dl className="teacher-stats">
+          {stats.map(([v, l]) => <div key={l}><dd>{fmt(v)}</dd><dt>{l}</dt></div>)}
+        </dl>
       </header>
 
       <div className="teacher-layout">
+        <TelegramPanel teacher={teacher} />
+
         <section className="teacher-main" aria-label="Haftalik jadval">
           <div className="section-bar">
             <h2 className="section-title">Haftalik jadval</h2>
-            <div className="segmented" role="tablist" aria-label="Ko'rinish">
+            <div className="segmented only-lg-flex" role="tablist" aria-label="Ko'rinish">
               <button role="tab" aria-selected={view === "week"} onClick={() => setView("week")}>Hafta</button>
-              <button role="tab" aria-selected={view === "list"} onClick={() => setView("list")}>Ro&apos;yxat</button>
+              <button role="tab" aria-selected={view === "days"} onClick={() => setView("days")}>Kunlar</button>
             </div>
           </div>
-          {lessons.length === 0
-            ? <div className="empty-inline">Bu o&apos;qituvchining joriy jadvalda darsi yo&apos;q.</div>
-            : view === "week" ? <WeekGrid lessons={lessons} teacherId={id} /> : <DayList lessons={lessons} teacherId={id} />}
+          {lessons.length === 0 ? (
+            <div className="empty-inline">Bu o&apos;qituvchining joriy jadvalda darsi yo&apos;q.</div>
+          ) : (
+            <>
+              {/* Desktop: hafta grid'i yoki kunlar; mobil: har doim kunlar */}
+              {view === "week" && <div className="only-lg"><WeekGrid lessons={lessons} teacherId={id} /></div>}
+              <div className={view === "week" ? "only-sm" : ""}><Agenda lessons={lessons} teacherId={id} /></div>
+            </>
+          )}
         </section>
-
-        <TelegramPanel teacher={teacher} />
       </div>
     </div>
   );
@@ -120,30 +137,62 @@ function LessonBlock({ e, teacherId }: { e: Entry; teacherId: string }) {
   );
 }
 
-function DayList({ lessons, teacherId }: { lessons: Entry[]; teacherId: string }) {
-  const days = [...new Set(lessons.map((e) => e.day))];
+// Kunlar bo'yicha vertikal "marshrut" (mobil'da asosiy ko'rinish)
+function Agenda({ lessons, teacherId }: { lessons: Entry[]; teacherId: string }) {
+  const { data } = useData();
+  const now = tashkent();
+  const days = Array.from({ length: data!.dayCount }, (_, d) => lessons.filter((e) => e.day === d).length);
+  const firstWithLessons = days.findIndex(Boolean);
+  const [day, setDay] = useState(() => (now.weekday <= 5 && days[now.weekday] ? now.weekday : Math.max(0, firstWithLessons)));
+  const list = lessons.filter((e) => e.day === day);
+
   return (
-    <div className="day-list">
-      {days.map((d) => (
-        <section key={d} aria-labelledby={`dl-${d}`}>
-          <h3 id={`dl-${d}`} className="day-list-title">{DAY_NAMES[d]}</h3>
-          <ul className="lesson-rows">
-            {lessons.filter((e) => e.day === d).map((e) => {
-              const others = e.teachers.filter((_, i) => e.teacherIds[i] !== teacherId);
-              return (
-                <li key={e.id} className="lesson-row compact" style={{ ["--c" as string]: e.color }}>
-                  <span className="lr-when tabular">
-                    <b>{e.duration > 1 ? `${e.period}–${e.period + e.duration - 1}` : e.period}-para</b> {e.start}–{e.end}
-                  </span>
-                  <span className="lr-subject">{e.subject}{others.length > 0 && <span className="muted"> · {others.join(", ")}</span>}</span>
-                  <span className="lr-groups">{groupsOf(e) || "—"}</span>
-                  <span className="lr-room">{e.rooms.join(", ") || "—"}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ))}
+    <div className="agenda">
+      <div className="day-chips compact" role="tablist" aria-label="Hafta kuni">
+        {days.map((n, d) => (
+          <button
+            key={d}
+            role="tab"
+            aria-selected={d === day}
+            className={"day-chip" + (d === now.weekday ? " is-today" : "") + (n ? "" : " is-empty")}
+            onClick={() => setDay(d)}
+          >
+            <span className="day-chip-name">{DAY_SHORT[d]}</span>
+            <span className="day-chip-count">{n || "–"}</span>
+          </button>
+        ))}
+      </div>
+
+      {list.length === 0 ? (
+        <div className="empty-inline">{DAY_NAMES[day]} kuni darsi yo&apos;q.</div>
+      ) : (
+        <ol className="route">
+          {list.map((e) => {
+            const others = e.teachers.filter((_, i) => e.teacherIds[i] !== teacherId);
+            const isNow = day === now.weekday && now.minutes >= toMinutes(e.start) && now.minutes < toMinutes(e.end);
+            return (
+              <li key={e.id} className={"route-stop" + (isNow ? " is-now" : "")} style={{ ["--c" as string]: e.color }}>
+                <div className="route-time tabular">
+                  <b>{e.start}</b>
+                  <span>{e.end}</span>
+                </div>
+                <div className="route-card">
+                  <div className="route-top">
+                    <span className="route-para">{e.duration > 1 ? `${e.period}–${e.period + e.duration - 1}` : e.period}-para</span>
+                    {isNow && <span className="live-pill">hozir</span>}
+                  </div>
+                  <b className="route-subject">{e.subject}</b>
+                  <div className="route-meta">
+                    {groupsOf(e) && <span><IconGroup />{groupsOf(e)}</span>}
+                    {e.rooms.length > 0 && <span><IconDoor />{e.rooms.join(", ")}</span>}
+                  </div>
+                  {others.length > 0 && <p className="route-with muted">Birga: {others.join(", ")}</p>}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 }
@@ -179,6 +228,15 @@ function TelegramPanel({ teacher }: { teacher: Teacher }) {
     notify("Havola nusxalandi");
   };
 
+  const share = async () => {
+    if (!shownLink) return;
+    if (navigator.share) {
+      await navigator.share({ title: "EMU jadval", text: `${teacher.name}, dars jadvalingizni Telegram'da olish uchun havolani oching:`, url: shownLink.url }).catch(() => {});
+    } else {
+      await copy();
+    }
+  };
+
   const unlink = (chatId: string) => run("unlink", async () => {
     await api("/api/admin/subscribers", "DELETE", { teacherId: teacher.id, chatId });
     setConfirmUnlink(null);
@@ -193,18 +251,19 @@ function TelegramPanel({ teacher }: { teacher: Teacher }) {
   });
 
   return (
-    <aside className="tg-panel" aria-label="Telegram">
+    <aside className={"tg-panel" + (chats.length ? " is-linked" : "")} aria-label="Telegram">
       <div className="tg-head">
-        <h2 className="section-title">Telegram</h2>
-        <span className={"status" + (chats.length ? " on" : "")}>{chats.length ? `${chats.length} ta chat` : "Ulanmagan"}</span>
+        <span className="tg-icon" aria-hidden="true"><IconSend /></span>
+        <div>
+          <h2 className="section-title">Telegram</h2>
+          <span className={"status" + (chats.length ? " on" : "")}>{chats.length ? `${chats.length} ta chat ulangan` : "Ulanmagan"}</span>
+        </div>
       </div>
 
       {!admin ? (
         <p className="muted">{adminError || "Yuklanmoqda…"}</p>
       ) : !ready ? (
-        <p className="muted">
-          Bot hali sozlanmagan. <Link href="/bot">Bot sahifasida</Link> holatni tekshiring.
-        </p>
+        <p className="muted">Bot hali sozlanmagan. <Link href="/bot">Bot sahifasida</Link> holatni tekshiring.</p>
       ) : (
         <>
           {chats.length > 0 ? (
@@ -212,8 +271,8 @@ function TelegramPanel({ teacher }: { teacher: Teacher }) {
               {chats.map((c) => (
                 <li key={c.chat_id}>
                   <span className="tg-who">
-                    {c.first_name || "Nomsiz"}{c.username && <span className="muted"> @{c.username}</span>}
-                    <small className="muted">{new Date(c.created_at).toLocaleDateString("uz", { day: "numeric", month: "long" })} dan</small>
+                    <b>{c.first_name || "Nomsiz"}</b>
+                    <small className="muted">{c.username ? `@${c.username} · ` : ""}{new Date(c.created_at).toLocaleDateString("uz", { day: "numeric", month: "long" })} dan</small>
                   </span>
                   {confirmUnlink === c.chat_id ? (
                     <span className="inline-confirm">
@@ -227,15 +286,16 @@ function TelegramPanel({ teacher }: { teacher: Teacher }) {
               ))}
             </ul>
           ) : (
-            <p className="muted tg-intro">
-              O&apos;qituvchi havolani ochib Start bosgach, unga har kuni darslari yuboriladi.
-            </p>
+            <p className="muted tg-intro">O&apos;qituvchi havolani ochib Start bosgach, unga har kuni darslari yuboriladi.</p>
           )}
 
           {shownLink && (
             <div className="invite">
-              <code className="invite-url">{shownLink.url}</code>
-              <button className="btn btn-ink" onClick={copy}>{copied ? "Nusxalandi" : "Havolani nusxalash"}</button>
+              <span className="invite-url"><IconLink />{shownLink.url.replace("https://", "")}</span>
+              <div className="invite-actions">
+                <button className="btn btn-ink" onClick={copy}>{copied ? <><IconCheck />Nusxalandi</> : <><IconCopy />Nusxalash</>}</button>
+                <button className="btn btn-ghost" onClick={share}>Ulashish</button>
+              </div>
               <p className="muted small">
                 Bir martalik, {new Date(shownLink.expiresAt).toLocaleDateString("uz", { day: "numeric", month: "long" })} gacha amal qiladi.
               </p>
@@ -243,14 +303,14 @@ function TelegramPanel({ teacher }: { teacher: Teacher }) {
           )}
 
           <button className={"btn " + (shownLink ? "btn-ghost" : "btn-ink") + " btn-block"} disabled={busy === "link"} onClick={createLink}>
-            {busy === "link" ? "Yaratilmoqda…" : shownLink ? "Yangi havola yaratish" : "Taklif havolasini yaratish"}
+            <IconLink />{busy === "link" ? "Yaratilmoqda…" : shownLink ? "Yangi havola yaratish" : "Taklif havolasini yaratish"}
           </button>
 
           {chats.length > 0 && (
             <div className="tg-send">
               <span className="muted small">Hozir yuborish:</span>
-              <button className="link-btn" disabled={!!busy} onClick={() => sendNow("today")}>bugungi</button>
-              <button className="link-btn" disabled={!!busy} onClick={() => sendNow("tomorrow")}>ertangi</button>
+              <button className="chip" disabled={!!busy} onClick={() => sendNow("today")}>Bugungi</button>
+              <button className="chip" disabled={!!busy} onClick={() => sendNow("tomorrow")}>Ertangi</button>
             </div>
           )}
         </>

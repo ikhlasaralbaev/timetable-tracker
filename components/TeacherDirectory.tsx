@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DAY_NAMES, DAY_SHORT, fmt, teacherSlug, useData } from "@/components/data";
+import { Avatar, DAY_NAMES, DAY_SHORT, fmt, teacherSlug, useData } from "@/components/data";
+import { IconChevron, IconSearch } from "@/components/icons";
 
 type Filter = "all" | "linked" | "unlinked" | "idle";
 type Sort = "name" | "load";
 
 const FILTERS: [Filter, string][] = [
   ["all", "Hammasi"],
-  ["linked", "Telegram'ga ulangan"],
+  ["linked", "Ulangan"],
   ["unlinked", "Ulanmagan"],
   ["idle", "Darsi yo'q"],
 ];
@@ -53,85 +54,80 @@ export default function TeacherDirectory() {
   }, [data, q, filter, sort, linked]);
 
   const peak = Math.max(1, ...[...perDay.values()].flat());
+  const coverage = counts.all - counts.idle ? Math.round((counts.linked / (counts.all - counts.idle)) * 100) : 0;
 
   return (
-    <div className="directory">
-      <header className="page-head">
-        <h1 className="display">O&apos;qituvchilar</h1>
-        <p className="lede">
-          {fmt(counts.all)} nafar o&apos;qituvchi, ulardan {fmt(counts.linked)} nafari Telegram&apos;ga ulangan.
-          Havola yaratish uchun o&apos;qituvchini oching.
-        </p>
+    <div className="directory stagger">
+      <header className="page-hero">
+        <div>
+          <h1 className="display">O&apos;qituvchilar</h1>
+          <p className="lede">Havola yaratish va haftalik jadvalni ko&apos;rish uchun o&apos;qituvchini oching.</p>
+        </div>
+        <div className="coverage" aria-label={`Darsi bor o'qituvchilarning ${coverage} foizi Telegram'ga ulangan`}>
+          <div className="coverage-ring" style={{ ["--p" as string]: coverage }}><span>{coverage}%</span></div>
+          <div>
+            <b>{fmt(counts.linked)} / {fmt(counts.all - counts.idle)}</b>
+            <span className="muted">Telegram&apos;ga ulangan</span>
+          </div>
+        </div>
       </header>
 
-      <div className="dir-tools">
-        <input
-          className="field"
-          type="search"
-          placeholder="Ism bo'yicha qidirish"
-          aria-label="Ism bo'yicha qidirish"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="segmented" role="radiogroup" aria-label="Saralash">
-          <button role="radio" aria-checked={sort === "name"} onClick={() => setSort("name")}>A–Z</button>
-          <button role="radio" aria-checked={sort === "load"} onClick={() => setSort("load")}>Yuklama</button>
+      <div className="toolbar-sticky">
+        <div className="dir-tools">
+          <label className="field-icon">
+            <IconSearch />
+            <input type="search" placeholder="Ism bo'yicha qidirish" aria-label="Ism bo'yicha qidirish" value={q} onChange={(e) => setQ(e.target.value)} />
+          </label>
+          <div className="segmented" role="radiogroup" aria-label="Saralash">
+            <button role="radio" aria-checked={sort === "name"} onClick={() => setSort("name")}>A–Z</button>
+            <button role="radio" aria-checked={sort === "load"} onClick={() => setSort("load")}>Yuklama</button>
+          </div>
         </div>
-      </div>
-
-      <div className="filter-row" role="radiogroup" aria-label="Filtr">
-        {FILTERS.map(([key, label]) => (
-          <button key={key} role="radio" aria-checked={filter === key} className="chip" onClick={() => setFilter(key)}>
-            {label} <span className="chip-count tabular">{fmt(counts[key])}</span>
-          </button>
-        ))}
+        <div className="filter-row" role="radiogroup" aria-label="Filtr">
+          {FILTERS.map(([key, label]) => (
+            <button key={key} role="radio" aria-checked={filter === key} className="chip" onClick={() => setFilter(key)}>
+              {label} <span className="chip-count tabular">{fmt(counts[key])}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {list.length === 0 ? (
         <div className="empty-inline">Bu filtr bo&apos;yicha o&apos;qituvchi topilmadi.</div>
       ) : (
-        <table className="dir-table">
-          <thead>
-            <tr>
-              <th scope="col">O&apos;qituvchi</th>
-              <th scope="col" className="hide-sm">
-                <span className="heat heat-legend" aria-label="Kunlar bo'yicha darslar">
-                  {Array.from({ length: data!.dayCount }, (_, d) => <span key={d}>{DAY_SHORT[d]}</span>)}
-                </span>
-              </th>
-              <th scope="col" className="num">Dars</th>
-              <th scope="col">Telegram</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((t) => {
-              const days = perDay.get(t.id) || Array(data!.dayCount).fill(0);
-              return (
-                <tr key={t.id} className={t.count ? "" : "is-idle"}>
-                  <td>
-                    <Link href={`/teachers/${teacherSlug(t.id)}`} className="dir-name">
-                      <span className="swatch" style={{ ["--c" as string]: t.color }} />
-                      {t.name}
-                    </Link>
-                  </td>
-                  <td className="hide-sm">
-                    <span className="heat" aria-label={days.map((n, d) => `${DAY_NAMES[d]}: ${n}`).join(", ")}>
-                      {days.map((n, d) => (
-                        <span key={d} className="heat-cell" style={{ ["--a" as string]: n ? 0.22 + (n / peak) * 0.78 : 0 }} title={`${DAY_NAMES[d]}: ${n} dars`} />
-                      ))}
+        <ul className="people">
+          <li className="people-head" aria-hidden="true">
+            <span>O&apos;qituvchi</span>
+            <span className="heat">{Array.from({ length: data!.dayCount }, (_, d) => <span key={d}>{DAY_SHORT[d]}</span>)}</span>
+            <span>Telegram</span>
+          </li>
+          {list.map((t) => {
+            const days = perDay.get(t.id) || Array(data!.dayCount).fill(0);
+            const workDays = days.filter(Boolean).length;
+            return (
+              <li key={t.id}>
+                <Link href={`/teachers/${teacherSlug(t.id)}`} className={"person-row" + (t.count ? "" : " is-idle")}>
+                  <span className="person-main">
+                    <Avatar name={t.name} color={t.color} />
+                    <span className="person-text">
+                      <b>{t.name}</b>
+                      <span className="muted">{t.count ? `${t.count} dars · ${workDays} kun` : "Joriy jadvalda darsi yo'q"}</span>
                     </span>
-                  </td>
-                  <td className="num tabular">{t.count}</td>
-                  <td>
-                    {linked.has(t.id)
-                      ? <span className="status on">Ulangan</span>
-                      : <span className="status">{t.count ? "Ulanmagan" : "—"}</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </span>
+                  <span className="heat" aria-label={days.map((n, d) => `${DAY_NAMES[d]}: ${n}`).join(", ")}>
+                    {days.map((n, d) => (
+                      <span key={d} className="heat-cell" style={{ ["--a" as string]: n ? 0.22 + (n / peak) * 0.78 : 0 }} title={`${DAY_NAMES[d]}: ${n} dars`} />
+                    ))}
+                  </span>
+                  <span className="person-status">
+                    {linked.has(t.id) ? <span className="status on">Ulangan</span> : <span className="status">{t.count ? "Ulanmagan" : "—"}</span>}
+                    <IconChevron className="row-chevron" />
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

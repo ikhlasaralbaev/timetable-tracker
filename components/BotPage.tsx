@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, fmt, teacherSlug, useData, type AdminState } from "@/components/data";
+import { api, Avatar, fmt, teacherSlug, toMinutes, useData, type AdminState } from "@/components/data";
+import { IconBolt, IconCalendar, IconSend, IconUsers } from "@/components/icons";
 
 type Settings = NonNullable<AdminState["settings"]>;
 
@@ -22,15 +23,19 @@ export default function BotPage() {
   const ready = admin.status.db && admin.status.bot;
 
   return (
-    <div className="bot">
-      <header className="page-head">
-        <h1 className="display">Bot</h1>
-        <p className="lede">
-          {admin.bot
-            ? <>O&apos;qituvchilarga kunlik darslarni <a href={`https://t.me/${admin.bot.username}`} target="_blank" rel="noreferrer">@{admin.bot.username}</a> yuboradi.</>
-            : "Telegram bot hali sozlanmagan."}
-        </p>
+    <div className="bot stagger">
+      <header className="page-hero">
+        <div>
+          <h1 className="display">Bot</h1>
+          <p className="lede">
+            {admin.bot
+              ? <>O&apos;qituvchilarga kunlik darslarni <a href={`https://t.me/${admin.bot.username}`} target="_blank" rel="noreferrer">@{admin.bot.username}</a> yuboradi.</>
+              : "Telegram bot hali sozlanmagan."}
+          </p>
+        </div>
       </header>
+
+      <Tiles />
 
       <div className="bot-layout">
         <div className="bot-main">
@@ -44,6 +49,43 @@ export default function BotPage() {
           <History />
         </aside>
       </div>
+    </div>
+  );
+}
+
+// Asosiy raqamlar: obunachilar, keyingi va oxirgi yuborish
+function Tiles() {
+  const { admin, data } = useData();
+  const a = admin!;
+  const s = a.settings;
+  const chats = new Set(a.subscribers.map((x) => x.chat_id)).size;
+  const teachers = new Set(a.subscribers.map((x) => x.teacher_id)).size;
+  const active = data!.teachers.filter((t) => t.count > 0).length;
+
+  let next = s ? "o'chirilgan" : "—";
+  if (s?.enabled) {
+    const sentToday = s.last_sent_date === a.status.now.date;
+    const passed = toMinutes(a.status.now.time) >= toMinutes(s.send_time);
+    next = `${sentToday || passed ? "ertaga" : "bugun"} ${s.send_time}`;
+  }
+  const last = a.sends[0];
+
+  const tiles = [
+    { Icon: IconUsers, value: fmt(teachers), label: `o'qituvchi ulangan, ${fmt(active)} tadan`, accent: true },
+    { Icon: IconSend, value: fmt(chats), label: "Telegram chat" },
+    { Icon: IconCalendar, value: next, label: s ? `keyingi yuborish, ${s.send_day === "tomorrow" ? "ertangi" : "bugungi"} darslar` : "sozlanmagan" },
+    { Icon: IconBolt, value: last ? fmt(last.sent) : "—", label: last ? `oxirgi yuborishda, ${new Date(last.at).toLocaleDateString("uz", { day: "numeric", month: "short" })}` : "hali yuborilmagan" },
+  ];
+
+  return (
+    <div className="tiles">
+      {tiles.map((t) => (
+        <div key={t.label} className={"tile" + (t.accent ? " tile-accent" : "")}>
+          <t.Icon />
+          <b>{t.value}</b>
+          <span>{t.label}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -226,8 +268,9 @@ function Subscribers() {
               return (
                 <tr key={key}>
                   <td>
-                    <Link href={`/teachers/${teacherSlug(s.teacher_id)}`} className="dir-name">
-                      <span className="swatch" style={{ ["--c" as string]: t?.color }} />{t?.name || s.teacher_id}
+                    <Link href={`/teachers/${teacherSlug(s.teacher_id)}`} className="person">
+                      <Avatar name={t?.name || "?"} color={t?.color} size="sm" />
+                      <span>{t?.name || s.teacher_id}</span>
                     </Link>
                   </td>
                   <td>{s.first_name || "Nomsiz"}{s.username && <span className="muted"> @{s.username}</span>}</td>

@@ -137,3 +137,24 @@ export function teacherIdFromSlug(slug: string, byId: Map<string, Teacher>) {
 }
 
 export const groupsOf = (e: Entry) => [...e.classes, ...e.groups].join(", ");
+
+// Ism-familiya bosh harflari: "Abdullaeva Muazzam" → "AM"
+export function initials(name: string) {
+  const words = name.replace(/[^\p{L}\s]/gu, " ").split(/\s+/).filter(Boolean);
+  return ((words[0]?.[0] || "") + (words[1]?.[0] || "")).toUpperCase() || "?";
+}
+
+export function Avatar({ name, color, size = "md" }: { name: string; color?: string; size?: "sm" | "md" | "lg" | "xl" }) {
+  return (
+    <span className={`avatar avatar-${size}`} style={{ ["--c" as string]: color || "#8A93A3" }} aria-hidden="true">
+      {initials(name)}
+    </span>
+  );
+}
+
+// "47 daqiqa" / "1 soat 5 daqiqa"
+export function duration(min: number) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h ? `${h} soat${m ? ` ${m} daqiqa` : ""}` : `${m} daqiqa`;
+}

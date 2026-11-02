@@ -38,22 +38,38 @@ export function lessonsFor(data: Timetable, teacherId: string, weekday: number):
     .sort((a, b) => a.period - b.period);
 }
 
+// Para raqami uchun emoji-raqamlar: 1️⃣ 2️⃣ …
+const KEYCAPS = ["0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"];
+const keycap = (n: number) => KEYCAPS[n] ?? `${n}.`;
+
+// Telegram HTML: har bir dars alohida <blockquote>, oxirida kun xulosasi
 export function formatDay(teacherName: string, day: DayRef, which: "today" | "tomorrow", lessons: Entry[], teacherId: string) {
-  const head = `<b>${which === "tomorrow" ? "Ertangi" : "Bugungi"} darslar</b> · ${day.label}\n${escapeHtml(teacherName)}`;
-  if (!lessons.length) return `${head}\n\n${which === "tomorrow" ? "Ertaga" : "Bugun"} darsingiz yo'q.`;
+  const title = which === "tomorrow" ? "Ertangi darslar" : "Bugungi darslar";
+  const head = `📅 <b>${title}</b>\n<i>${day.label}</i>\n👤 ${escapeHtml(teacherName)}`;
+
+  if (!lessons.length) {
+    return `${head}\n\n🌿 ${which === "tomorrow" ? "Ertaga" : "Bugun"} darsingiz yo'q. Yaxshi dam oling.`;
+  }
 
   const blocks = lessons.map((e) => {
-    const periods = e.duration > 1 ? `${e.period}–${e.period + e.duration - 1}` : String(e.period);
-    const who = [...e.classes, ...e.groups].join(", ");
+    const para = e.duration > 1 ? `${keycap(e.period)}–${keycap(e.period + e.duration - 1)}` : keycap(e.period);
+    const groups = [...e.classes, ...e.groups].join(", ");
     const others = e.teachers.filter((_, i) => e.teacherIds[i] !== teacherId);
     const lines = [
-      `<b>${periods}-para</b>  ${e.start}–${e.end}`,
-      escapeHtml(e.subject),
-      who && `Guruh: ${escapeHtml(who)}`,
-      e.rooms.length ? `Xona: ${escapeHtml(e.rooms.join(", "))}` : "",
-      others.length ? `Birga: ${escapeHtml(others.join(", "))}` : "",
+      `${para}  <b>${e.start} – ${e.end}</b>`,
+      `📘 <b>${escapeHtml(e.subject)}</b>`,
+      groups && `👥 ${escapeHtml(groups)}`,
+      e.rooms.length ? `🚪 ${escapeHtml(e.rooms.join(", "))}` : "",
+      others.length ? `🤝 Birga: ${escapeHtml(others.join(", "))}` : "",
     ];
-    return lines.filter(Boolean).join("\n");
+    return `<blockquote>${lines.filter(Boolean).join("\n")}</blockquote>`;
   });
-  return `${head}\n\n${blocks.join("\n\n")}`;
+
+  const paras = lessons.reduce((n, e) => n + e.duration, 0);
+  const first = lessons[0];
+  const last = lessons[lessons.length - 1];
+  const parasNote = paras !== lessons.length ? ` (${paras} para)` : "";
+  const summary = `🕘 Jami <b>${lessons.length} ta dars</b>${parasNote}, ${first.start} dan ${last.end} gacha.`;
+
+  return `${head}\n\n${blocks.join("\n")}\n${summary}`;
 }

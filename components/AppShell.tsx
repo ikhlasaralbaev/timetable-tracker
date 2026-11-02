@@ -3,31 +3,48 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DataProvider, teacherSlug, useData } from "@/components/data";
+import { Avatar, DataProvider, fmt, teacherSlug, useData } from "@/components/data";
+import { IconBoard, IconChevron, IconClose, IconLogout, IconRefresh, IconSearch, IconSend, IconUsers } from "@/components/icons";
 
 const NAV = [
-  { href: "/", label: "Bugun" },
-  { href: "/teachers", label: "O'qituvchilar" },
-  { href: "/bot", label: "Bot" },
+  { href: "/", label: "Bugun", Icon: IconBoard },
+  { href: "/teachers", label: "O'qituvchilar", Icon: IconUsers },
+  { href: "/bot", label: "Bot", Icon: IconSend },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <DataProvider>
       <a className="skip-link" href="#main">Asosiy qismga o&apos;tish</a>
-      <TopBar />
+      <TopBar onSearch={() => setPaletteOpen(true)} />
       <main id="main" className="page">
         <DataGate>{children}</DataGate>
       </main>
+      <TabBar />
+      {paletteOpen && <Palette onClose={() => setPaletteOpen(false)} />}
       <Toasts />
     </DataProvider>
   );
 }
 
-function TopBar() {
+const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+
+function TopBar({ onSearch }: { onSearch: () => void }) {
   const pathname = usePathname();
   const { refreshing, reload, data } = useData();
-  const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <header className="topbar">
@@ -39,25 +56,21 @@ function TopBar() {
 
         <nav className="nav" aria-label="Bo'limlar">
           {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className="nav-link" aria-current={active(n.href) ? "page" : undefined}>
+            <Link key={n.href} href={n.href} className="nav-link" aria-current={isActive(pathname, n.href) ? "page" : undefined}>
               {n.label}
             </Link>
           ))}
         </nav>
 
-        <TeacherSearch />
+        <button className="search-trigger" onClick={onSearch} aria-label="O'qituvchini topish">
+          <IconSearch />
+          <span className="search-trigger-text">O&apos;qituvchini topish</span>
+          <kbd>⌘K</kbd>
+        </button>
 
         <div className="topbar-actions">
-          <button
-            className="icon-btn"
-            onClick={() => reload(true)}
-            disabled={refreshing || !data}
-            title="Jadvalni edupage'dan qayta yuklash"
-            aria-label="Jadvalni yangilash"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true" className={refreshing ? "spin" : ""}>
-              <path d="M16 10a6 6 0 1 1-1.8-4.3M16 3.5v3.3h-3.3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <button className="icon-btn" onClick={() => reload(true)} disabled={refreshing || !data} title="Jadvalni edupage'dan yangilash" aria-label="Jadvalni yangilash">
+            <IconRefresh className={refreshing ? "spin" : ""} />
           </button>
           <button
             className="icon-btn"
@@ -65,9 +78,7 @@ function TopBar() {
             aria-label="Chiqish"
             onClick={async () => { await fetch("/api/logout", { method: "POST" }); location.href = "/login"; }}
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12.5 13.5 16 10l-3.5-3.5M16 10H8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <IconLogout />
           </button>
         </div>
       </div>
@@ -75,81 +86,94 @@ function TopBar() {
   );
 }
 
-// ⌘K / Ctrl+K: istalgan o'qituvchiga tez o'tish
-function TeacherSearch() {
+// Mobil: pastki tab bar (ilova kabi)
+function TabBar() {
+  const pathname = usePathname();
+  return (
+    <nav className="tabbar" aria-label="Bo'limlar">
+      {NAV.map(({ href, label, Icon }) => (
+        <Link key={href} href={href} className="tab" aria-current={isActive(pathname, href) ? "page" : undefined}>
+          <Icon />
+          <span>{label}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+// Istalgan o'qituvchiga tez o'tish: desktop'da markazda, mobil'da to'liq ekran
+function Palette({ onClose }: { onClose: () => void }) {
   const { data, linked } = useData();
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        input.current?.focus();
-        input.current?.select();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    input.current?.focus();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
   }, []);
 
   const results = useMemo(() => {
+    if (!data) return [];
     const needle = q.trim().toLowerCase();
-    if (!needle || !data) return [];
-    return data.teachers.filter((t) => t.name.toLowerCase().includes(needle)).slice(0, 8);
-  }, [q, data]);
+    if (!needle) return [...data.teachers].filter((t) => t.count > 0).sort((a, b) => Number(linked.has(b.id)) - Number(linked.has(a.id)) || b.count - a.count).slice(0, 8);
+    return data.teachers.filter((t) => t.name.toLowerCase().includes(needle)).slice(0, 30);
+  }, [q, data, linked]);
+
+  useEffect(() => {
+    list.current?.querySelector(`[data-i="${cursor}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [cursor]);
 
   function go(id: string) {
-    setQ("");
-    setOpen(false);
-    input.current?.blur();
+    onClose();
     router.push(`/teachers/${teacherSlug(id)}`);
   }
 
   return (
-    <div className="search" role="search">
-      <svg viewBox="0 0 20 20" aria-hidden="true" className="search-icon">
-        <circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
-        <path d="m13.2 13.2 3.3 3.3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-      <input
-        ref={input}
-        type="search"
-        placeholder="O'qituvchini topish"
-        aria-label="O'qituvchini topish"
-        role="combobox"
-        aria-expanded={open && results.length > 0}
-        aria-controls="search-results"
-        autoComplete="off"
-        value={q}
-        onChange={(e) => { setQ(e.target.value); setCursor(0); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, results.length - 1)); }
-          if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
-          if (e.key === "Enter" && results[cursor]) go(results[cursor].id);
-          if (e.key === "Escape") { setQ(""); input.current?.blur(); }
-        }}
-      />
-      <kbd className="search-kbd" aria-hidden="true">⌘K</kbd>
-      {open && results.length > 0 && (
-        <ul className="search-results" id="search-results" role="listbox">
+    <div className="palette-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="palette" role="dialog" aria-modal="true" aria-label="O'qituvchini topish">
+        <div className="palette-input">
+          <IconSearch />
+          <input
+            ref={input}
+            type="search"
+            placeholder="Ism yoki familiya"
+            aria-label="Ism yoki familiya"
+            role="combobox"
+            aria-expanded={results.length > 0}
+            aria-controls="palette-results"
+            autoComplete="off"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setCursor(0); }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, results.length - 1)); }
+              if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
+              if (e.key === "Enter" && results[cursor]) go(results[cursor].id);
+              if (e.key === "Escape") onClose();
+            }}
+          />
+          <button className="icon-btn" onClick={onClose} aria-label="Yopish"><IconClose /></button>
+        </div>
+        <p className="palette-hint">{q.trim() ? `${results.length} ta natija` : "Ko'p dars beradigan va Telegram'ga ulanganlar"}</p>
+        <ul className="palette-results" id="palette-results" role="listbox" ref={list}>
           {results.map((t, i) => (
-            <li key={t.id} role="option" aria-selected={i === cursor}>
-              <button onMouseDown={(e) => e.preventDefault()} onClick={() => go(t.id)} onMouseEnter={() => setCursor(i)}>
-                <span className="swatch" style={{ ["--c" as string]: t.color }} />
-                <span className="search-name">{t.name}</span>
+            <li key={t.id} role="option" aria-selected={i === cursor} data-i={i}>
+              <button onClick={() => go(t.id)} onMouseEnter={() => setCursor(i)}>
+                <Avatar name={t.name} color={t.color} size="sm" />
+                <span className="palette-name">{t.name}</span>
                 {linked.has(t.id) && <span className="tg-flag">TG</span>}
-                <span className="search-count">{t.count} dars</span>
+                <span className="palette-count">{fmt(t.count)} dars</span>
+                <IconChevron className="palette-chevron" />
               </button>
             </li>
           ))}
+          {q.trim() && results.length === 0 && <li className="palette-empty">Bunday o&apos;qituvchi topilmadi.</li>}
         </ul>
-      )}
+      </div>
     </div>
   );
 }
@@ -170,10 +194,9 @@ function DataGate({ children }: { children: React.ReactNode }) {
   }
   return (
     <div className="skeleton-page" aria-busy="true" aria-label="Jadval yuklanmoqda">
-      <div className="sk sk-title" />
-      <div className="sk sk-line" />
-      <div className="sk-rail">{Array.from({ length: 6 }, (_, i) => <div key={i} className="sk sk-stop" />)}</div>
-      {Array.from({ length: 6 }, (_, i) => <div key={i} className="sk sk-row" />)}
+      <div className="sk sk-hero" />
+      <div className="sk-chips">{Array.from({ length: 6 }, (_, i) => <div key={i} className="sk sk-chip" />)}</div>
+      {Array.from({ length: 5 }, (_, i) => <div key={i} className="sk sk-row" />)}
     </div>
   );
 }
