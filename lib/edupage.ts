@@ -4,6 +4,9 @@
 const EDUPAGE_URL = "https://emu.edupage.org/timetable/server/regulartt.js?__func=regularttGetData";
 const TT_NUM = process.env.EDUPAGE_TT_NUM || "165";
 const CACHE_MS = 10 * 60 * 1000;
+// Edupage Vercel (AWS) IP'larini bloklaydi; productionda so'rov Cloudflare Worker orqali o'tadi (proxy/worker.js)
+const PROXY_URL = process.env.EDUPAGE_PROXY_URL;
+const PROXY_KEY = process.env.EDUPAGE_PROXY_KEY;
 
 export type Entry = {
   id: string;
@@ -40,13 +43,19 @@ const clean = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
 
 export async function fetchRaw(): Promise<{ json: unknown; status: number; bytes: number; fetchMs: number }> {
   const t0 = Date.now();
-  const res = await fetch(EDUPAGE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ __args: [null, TT_NUM], __gsh: "00000000" }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(25_000),
-  });
+  const res = PROXY_URL
+    ? await fetch(`${PROXY_URL}?tt=${encodeURIComponent(TT_NUM)}`, {
+        headers: PROXY_KEY ? { "x-proxy-key": PROXY_KEY } : {},
+        cache: "no-store",
+        signal: AbortSignal.timeout(25_000),
+      })
+    : await fetch(EDUPAGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ __args: [null, TT_NUM], __gsh: "00000000" }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(25_000),
+      });
   const text = await res.text();
   const fetchMs = Date.now() - t0;
   if (!res.ok) throw new Error(`edupage ${res.status} javob qaytardi: ${text.slice(0, 200)}`);
