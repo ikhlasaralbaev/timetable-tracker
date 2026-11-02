@@ -129,6 +129,8 @@ export function BotSettings({ state, onChange }: { state: AdminState | null; onC
   const [draft, setDraft] = useState<AdminState["settings"]>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [castDay, setCastDay] = useState<"today" | "tomorrow">("today");
+  const [castEmpty, setCastEmpty] = useState(false);
 
   if (!state) return null;
   const s = draft ?? state.settings;
@@ -150,6 +152,16 @@ export function BotSettings({ state, onChange }: { state: AdminState | null; onC
     const r = await api<{ url: string }>("/api/admin/webhook", "POST");
     return `Webhook ulandi: ${r.url}`;
   });
+
+  const broadcast = () => {
+    const total = state.subscribers.length;
+    const day = castDay === "today" ? "bugungi" : "ertangi";
+    if (!confirm(`${total} ta obunachiga ${day} darslar hozir yuboriladi. Davom etasizmi?`)) return;
+    run("broadcast", async () => {
+      const r = await api<{ sent: number; skipped: number; failed: number }>("/api/admin/broadcast", "POST", { which: castDay, includeEmpty: castEmpty });
+      return `Yuborildi: ${r.sent}, darsi yo'q: ${r.skipped}, xato: ${r.failed}.`;
+    });
+  };
 
   return (
     <section className="panel" aria-label="Bot sozlamalari">
@@ -196,6 +208,28 @@ export function BotSettings({ state, onChange }: { state: AdminState | null; onC
           </div>
         )}
       </dl>
+
+      {state.status.db && state.status.bot && (
+        <div className="broadcast">
+          <h4>Hammaga hozir yuborish</h4>
+          <div className="settings-row">
+            <label>
+              Qaysi darslar
+              <select value={castDay} onChange={(e) => setCastDay(e.target.value as "today" | "tomorrow")}>
+                <option value="today">Bugungi</option>
+                <option value="tomorrow">Ertangi</option>
+              </select>
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={castEmpty} onChange={(e) => setCastEmpty(e.target.checked)} />
+              Darsi yo&apos;qlarga ham xabar yuborish
+            </label>
+            <button className="btn primary" disabled={!state.subscribers.length || busy === "broadcast"} onClick={broadcast}>
+              {busy === "broadcast" ? "Yuborilmoqda…" : `${state.subscribers.length} ta obunachiga yuborish`}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="actions">
         {state.bot && !webhookOk && (

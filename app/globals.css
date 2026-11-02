@@ -292,3 +292,5 @@ td a:hover { text-decoration: underline; }
 .login h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
 .login p { margin: 0; color: var(--muted); }
 .login input { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); }
+.broadcast { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.broadcast h4 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
